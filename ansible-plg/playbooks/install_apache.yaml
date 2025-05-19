@@ -1,0 +1,12 @@
+---
+  - name: install apache2 webserver
+    hosts: all
+    become: true
+    become_user: root
+
+    tasks:
+    - name: install apache2 package
+      apt:
+        name: ["apache2"]
+        state: present
+        update_cache: true

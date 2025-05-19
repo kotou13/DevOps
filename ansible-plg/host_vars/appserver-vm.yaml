@@ -1,0 +1,11 @@
+app:
+  env:
+    server.port: "{{app_port}}"
+    spring.datasource.username: "comeback"
+    spring.datasource.password: "vhBjjaKYkzHwxl1VqKrzR7WIhl4vy8hq"
+    spring.datasource.url: "jdbc:postgresql://dpg-d05sbih5pdvs73embv6g-a.oregon-postgres.render.com:5432/comeback"
+
+
+service:
+  workingdir: "{{ ansible_user_dir }}/spring"
+  execstart: "java -jar {{ ansible_user_dir }}/spring/target/crowdfunding-0.0.1-SNAPSHOT.jar

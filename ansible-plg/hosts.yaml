@@ -1,0 +1,5 @@
+---
+azurehosts:
+ hosts:
+   devopsvm:
+     ansible_host: devopsvm 
