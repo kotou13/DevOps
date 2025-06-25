@@ -1,0 +1,94 @@
+- hosts: all
+  become: yes
+  vars:
+    appdir: "/home/azureuser/spring"
+    branch: "main"
+
+    # local Postgres settings
+    db_name: "dbname_w0zv"
+    db_user: "dbname_w0zv_user"
+    db_password: "7jhhbashL3HARd7o9hhimTDeWmXA7osn"
+    db_port: 5432
+    db_host: "localhost"
+
+  pre_tasks:
+    - name: Install Java, Maven, and PostgreSQL
+      apt:
+        name:
+          - openjdk-21-jdk
+          - maven
+          - postgresql
+          - postgresql-contrib
+        state: present
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is running and enabled
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Create PostgreSQL database and user
+      block:
+        - name: Create the database
+          postgresql_db:
+            name: "{{ db_name }}"
+            encoding: UTF-8
+            state: present
+
+        - name: Create the DB user and grant all privileges
+          postgresql_user:
+            name: "{{ db_user }}"
+            password: "{{ db_password }}"
+            db: "{{ db_name }}"
+            priv: "ALL"
+            state: present
+        
+        - name: Change owner of the public schema to the app user
+          community.postgresql.postgresql_query:
+            db: "{{ db_name }}"
+            query: "ALTER SCHEMA public OWNER TO {{ db_user }};"
+ 
+      become_user: postgres
+
+  tasks:
+    - name: Debug appdir
+      ansible.builtin.debug:
+        msg: "appdir {{ appdir }}"
+
+    - name: Clone the Spring repository
+      git:
+        repo: "https://kotou13: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@github.com/kotou13/omada30.git"
+        dest: "{{ appdir }}"
+        version: "{{ branch }}"
+        force: yes
+      tags:
+        - clone
+
+    - name: Ensure correct ownership of the app directory
+      file:
+        path: "{{ appdir }}"
+        owner: azureuser
+        group: azureuser
+        recurse: yes
+
+    - name: Build the Spring application using system Maven
+      command: mvn package -Dmaven.test.skip
+      args:
+        chdir: "{{ appdir }}"
+      become_user: azureuser
+
+    - name: Run the Spring application against local Postgres
+      command: >
+        java -jar target/crowdfunding-0.0.1-SNAPSHOT.jar
+        --spring.datasource.url=jdbc:postgresql://{{ db_host }}:{{ db_port }}/{{ db_name }}
+        --spring.datasource.username={{ db_user }}
+        --spring.datasource.password={{ db_password }}
+      args:
+        chdir: "{{ appdir }}"
+      environment:
+        # In case you prefer env vars over CLI flags:
+        SPRING_DATASOURCE_URL: "jdbc:postgresql://{{ db_host }}:{{ db_port }}/{{ db_name }}"
+        SPRING_DATASOURCE_USERNAME: "{{ db_user }}"
+        SPRING_DATASOURCE_PASSWORD: "{{ db_password }}"
+      become_user: azureuser
