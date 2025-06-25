@@ -1,0 +1,128 @@
+- hosts: all
+  become: yes
+  vars:
+    appdir: "/home/azureuser/spring"
+    branch: "main"
+
+  pre_tasks:
+    # 1) Remove any old Docker apt source & keyring BEFORE running apt
+    - name: Remove old Docker apt source file
+      file:
+        path: /etc/apt/sources.list.d/docker.list
+        state: absent
+
+    - name: Remove old Docker apt keyring
+      file:
+        path: /etc/apt/keyrings/docker.asc
+        state: absent
+
+    # 2) Refresh package index now that conflicting sources are gone
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    # 3) Purge any old Docker/containerd packages
+    - name: Purge old Docker/containerd packages
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - containerd.io
+        state: absent
+        purge: yes
+        autoremove: yes
+
+    # 4) Install tooling needed to add Docker’s official repo
+    - name: Install prerequisites for Docker repo
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    # 5) Add Docker’s GPG key into a single keyring
+    - name: Add Docker’s official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        keyring: /usr/share/keyrings/docker-archive-keyring.gpg
+        state: present
+
+    # 6) Add Docker CE repository (signed by the same keyring)
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: >-
+          deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]
+          https://download.docker.com/linux/ubuntu
+          {{ ansible_lsb.codename }} stable
+        filename: docker
+        state: present
+
+    # 7) Refresh again so we can install Docker CE
+    - name: Update apt cache after adding Docker repo
+      apt:
+        update_cache: yes
+
+    # 8) Install Docker CE, CLI & containerd.io
+    - name: Install Docker CE, CLI, and containerd.io
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: latest
+
+    - name: Add azureuser to docker group
+      user:
+        name: azureuser
+        groups: docker
+        append: yes
+
+    - name: Reload systemd & ensure Docker service is running
+      systemd:
+        daemon_reload: yes
+        name: docker
+        state: started
+        enabled: yes
+    
+    - name: Stop and disable host PostgreSQL service
+      service:
+        name: postgresql
+        state: stopped
+        enabled: no
+
+  tasks:
+    - name: Debug appdir
+      debug:
+        msg: "Deploying into {{ appdir }}"
+
+    - name: Clone the Spring Docker project
+      git:
+        repo: "https://kotou13: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@github.com/kotou13/omada30.git"
+        dest: "{{ appdir }}"
+        version: "{{ branch }}"
+        force: yes
+
+    - name: Ensure correct ownership
+      file:
+        path: "{{ appdir }}"
+        owner: azureuser
+        group: azureuser
+        recurse: yes
+
+    - name: Build Docker images
+      command: docker compose build
+      args:
+        chdir: "{{ appdir }}"
+      become_user: azureuser
+
+    - name: Start containers
+      command: docker compose up -d
+      args:
+        chdir: "{{ appdir }}"
+      become_user: azureuser

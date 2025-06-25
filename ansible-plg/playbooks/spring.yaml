@@ -3,12 +3,6 @@
   vars:
     appdir: "/home/azureuser/spring"
     branch: "main"
-    app:
-      env:
-        server.port: 8080
-        spring.datasource.username: comeback
-        spring.datasource.password: vhBjjaKYkzHwxl1VqKrzR7WIhl4vy8hq
-        spring.datasource.url: jdbc:postgresql://dpg-d05sbih5pdvs73embv6g-a.oregon-postgres.render.com:5432/comeback
 
   pre_tasks:
     - name: Install Java and Maven
@@ -40,15 +34,6 @@
         group: azureuser
         recurse: yes
 
-
-    - name: Populate application.properties
-      lineinfile:
-        dest: "{{ appdir }}/src/main/resources/application.properties"
-        state: present
-        regexp: "^{{ item.key }}="
-        line: "{{ item.key }}={{ item.value }}"
-      with_items: "{{ app.env | dict2items }}"
-
     - name: Build the Spring application using system Maven
       command: mvn package -Dmaven.test.skip
       args:
@@ -61,57 +46,8 @@
         chdir: "{{ appdir }}"
       become_user: azureuser
 
-    - name: Copy spring service file
-      template:
-        src: ../files/spring.service.j2
-        dest: /etc/systemd/system/spring.service
-      notify: restart spring
 
-    - name: Reload spring service
-      service:
-        name: spring
-        state: restarted
 
-    - name: Ensure spring service is enabled and running
-      service:
-        name: spring
-        state: started
-        enabled: yes
-
-    - name: Install nginx
-      apt:
-        name: nginx
-        update_cache: yes
-
-    - name: Copy nginx conf file
-      template:
-        src: ../files/nginx.http.j2
-        dest: /etc/nginx/sites-available/spring
-      notify: restart nginx
-
-    - name: Enable spring site in nginx
-      file:
-        src: /etc/nginx/sites-available/spring
-        dest: /etc/nginx/sites-enabled/spring
-        state: link
-      notify: restart nginx
-
-    - name: Deactivate default nginx site
-      file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
-      notify: restart nginx
-
-  handlers:
-    - name: restart spring
-      service:
-        name: spring
-        state: restarted
-
-    - name: restart nginx
-      service:
-        name: nginx
-        state: restarted
 
 
 
