@@ -57,6 +57,32 @@
           community.postgresql.postgresql_query:
             db: "{{ db_name }}"
             query: "ALTER SCHEMA public OWNER TO {{ db_user }};"
+
+        - name: Conditionally insert admin and update role
+          become: true
+          become_user: postgres
+          community.postgresql.postgresql_query:
+            db: dbname_w0zv
+            autocommit: yes
+            query: |
+              DO $$
+              BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM users WHERE username = 'admin'
+                ) THEN
+                INSERT INTO users (email, password, username)
+                VALUES (
+                  'admin@gmail.com',
+                  '$2a$10$Zq5003eyF2BIHONWecIMRelBtXaSHJV7tzgOIifMp0qlvK8vbpffC',
+                  'admin'
+                );
+                INSERT INTO user_roles (user_id, role_id)
+                  SELECT id, 2
+                  FROM users
+                  WHERE username = 'admin';
+                END IF;
+              END
+              $$;
               
   tasks:
     - name: Debug appdir
